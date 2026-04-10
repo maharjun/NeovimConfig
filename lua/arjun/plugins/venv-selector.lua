@@ -7,6 +7,7 @@ return {
     config = function()
         require("venv-selector").setup({
             options = {
+                enable_cached_venvs = false,
                 -- Show just the venv folder name instead of full path
                 on_telescope_result_callback = function(filename)
                     -- Extract venv name from path like /path/to/.venv-name/bin/python

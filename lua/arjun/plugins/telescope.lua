@@ -10,6 +10,7 @@ return {
         local telescope = require("telescope")
         telescope.setup({
             defaults = {
+                sorting_strategy = "ascending",
                 path_display = { "smart" },
                 layout_config = {
                     horizontal = {
@@ -17,7 +18,26 @@ return {
                     },
                 },
             },
+            extensions = {
+                fzf = {},
+            },
+            pickers = {
+                find_files = {
+                    hidden = true,
+                    file_ignore_patterns = { "%.git/" },
+                },
+                grep_string = {
+                    additional_args = { "--hidden", "--glob=!.git/" },
+                },
+                live_grep = {
+                    additional_args = { "--hidden", "--glob=!.git/" },
+                },
+                buffers = {
+                    file_ignore_patterns = {},
+                },
+            },
         })
+        telescope.load_extension("fzf")
         telescope.load_extension("live_grep_args")
     end,
     keys = {

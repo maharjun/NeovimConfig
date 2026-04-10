@@ -25,5 +25,11 @@ vim.keymap.set("n", "[d", vim.diagnostic.goto_prev, { desc = "Previous diagnosti
 vim.keymap.set("n", "<leader>e", vim.diagnostic.open_float, { desc = "Show diagnostic message" })
 vim.keymap.set("n", "<leader>q", vim.diagnostic.setloclist, { desc = "Diagnostics to loclist" })
 
+-- Pane navigation
+vim.keymap.set("n", "<C-h>", "<C-w>h", { desc = "Move to left pane" })
+vim.keymap.set("n", "<C-j>", "<C-w>j", { desc = "Move to lower pane" })
+vim.keymap.set("n", "<C-k>", "<C-w>k", { desc = "Move to upper pane" })
+vim.keymap.set("n", "<C-l>", "<C-w>l", { desc = "Move to right pane" })
+
 -- Terminal
 vim.keymap.set("t", "<C-\\>", "<C-\\><C-n>", { desc = "Exit terminal mode" })

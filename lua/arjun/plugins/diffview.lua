@@ -5,10 +5,24 @@ return {
         { "<leader>gd", "<cmd>DiffviewOpen<cr>", desc = "Diffview: open" },
         { "<leader>gh", "<cmd>DiffviewFileHistory %<cr>", desc = "Diffview: file history" },
         { "<leader>gq", "<cmd>DiffviewClose<cr>", desc = "Diffview: close" },
+        { "<leader>gm", "<cmd>DiffviewOpen origin/main...HEAD<cr>", desc = "Diffview: diff against main (merge base)" },
+        { "<leader>gs", "<cmd>DiffviewOpen --staged<cr>", desc = "Diffview: diff against main (merge base)" },
     },
     config = function()
+        local actions = require("diffview.actions")
         require("diffview").setup({
             enhanced_diff_hl = true,
+            keymaps = {
+                view = {
+                    { "n", "<leader>gl", actions.cycle_layout, { desc = "Cycle diff layout" } },
+                },
+                file_panel = {
+                    { "n", "<leader>gl", actions.cycle_layout, { desc = "Cycle diff layout" } },
+                },
+                file_history_panel = {
+                    { "n", "<leader>gl", actions.cycle_layout, { desc = "Cycle diff layout" } },
+                },
+            },
             hooks = {
                 diff_buf_read = function()
                     vim.opt_local.wrap = false
