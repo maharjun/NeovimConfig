@@ -1,6 +1,6 @@
 return {
     -- "ray-x/lsp_signature.nvim",
-    dir = "/home/arjun/Desktop/Work/Cosmon/lsp_signature.nvim",
+    dir = "/home/arjun/randomrepos/nvim_plugins/lsp_signature.nvim",
     event = "InsertEnter",
     opts = {
         bind = true,

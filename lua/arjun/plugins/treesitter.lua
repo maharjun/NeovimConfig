@@ -116,10 +116,10 @@ return {
     lazy = false,
     config = function()
         require("nvim-treesitter").setup({})
-        require("nvim-treesitter").install({ "lua", "vim", "vimdoc", "query", "python", "xml", "json", "yaml" })
+        require("nvim-treesitter").install({ "lua", "vim", "vimdoc", "query", "python", "xml", "json", "yaml", "markdown", "markdown_inline" })
 
         vim.api.nvim_create_autocmd("FileType", {
-            pattern = { "lua", "vim", "query", "python", "xml", "json", "yaml" },
+            pattern = { "lua", "vim", "query", "python", "xml", "json", "yaml", "markdown", "markdown_inline" },
             callback = function()
                 vim.treesitter.start()
                 vim.bo.indentexpr = "v:lua.require'nvim-treesitter'.indentexpr()"
