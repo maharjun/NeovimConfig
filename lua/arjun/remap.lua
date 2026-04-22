@@ -19,6 +19,10 @@ vim.keymap.set("n", "gtd", vim.lsp.buf.type_definition, { desc = "Go to type def
 vim.keymap.set("n", "K", vim.lsp.buf.hover, { desc = "Hover documentation" })
 vim.keymap.set("n", "gr", "<cmd>Telescope lsp_references<cr>", { desc = "Go to references" })
 
+-- Arglist navigation
+vim.keymap.set("n", "<leader>j", function() require("arjun.arglist").next() end, { desc = "Next arglist file" })
+vim.keymap.set("n", "<leader>k", function() require("arjun.arglist").prev() end, { desc = "Previous arglist file" })
+
 -- Diagnostics navigation
 vim.keymap.set("n", "]d", vim.diagnostic.goto_next, { desc = "Next diagnostic" })
 vim.keymap.set("n", "[d", vim.diagnostic.goto_prev, { desc = "Previous diagnostic" })

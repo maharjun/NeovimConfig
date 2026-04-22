@@ -5,6 +5,7 @@ return {
         "nvim-lua/plenary.nvim",
         { "nvim-telescope/telescope-fzf-native.nvim", build = "make" },
         { "nvim-telescope/telescope-live-grep-args.nvim", version = "^1.0.0" },
+        "sam4llis/telescope-arglist.nvim",
     },
     config = function()
         local telescope = require("telescope")
@@ -39,12 +40,14 @@ return {
         })
         telescope.load_extension("fzf")
         telescope.load_extension("live_grep_args")
+        telescope.load_extension("arglist")
     end,
     keys = {
         -- Files
         { "<leader>pf", "<cmd>Telescope find_files<cr>", desc = "Find files" },
         { "<leader>pr", "<cmd>Telescope oldfiles<cr>", desc = "Recent files" },
         { "<leader>pb", "<cmd>Telescope buffers<cr>", desc = "Buffers" },
+        { "<leader>pl", function() require("arjun.arglist").pick() end, desc = "Pick arglist preset" },
         -- Search (with ripgrep args support)
         { "<leader>ps", function() require("telescope").extensions.live_grep_args.live_grep_args() end, desc = "Search text (with args)" },
         { "<leader>pw", "<cmd>Telescope grep_string<cr>", desc = "Search word under cursor" },
