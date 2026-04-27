@@ -4,3 +4,5 @@ require("arjun.lazy")
 
 -- Enable project-local config files (.nvim.lua)
 vim.o.exrc = true
+
+vim.cmd("packadd cfilter")
