@@ -44,27 +44,15 @@ return {
     end,
     keys = {
         -- Files
-        { "<leader>pf", "<cmd>Telescope find_files<cr>", desc = "Find files" },
+        { "<leader>pf", function() require("arjun.telescope_fast_find").open() end, desc = "Find files" },
         { "<leader>pr", "<cmd>Telescope oldfiles<cr>", desc = "Recent files" },
         { "<leader>pb", "<cmd>Telescope buffers<cr>", desc = "Buffers" },
         { "<leader>pl", function() require("arjun.arglist").pick() end, desc = "Pick arglist preset" },
         -- Search (with ripgrep args support)
         { "<leader>ps", function() require("telescope").extensions.live_grep_args.live_grep_args() end, desc = "Search text (with args)" },
         { "<leader>pw", "<cmd>Telescope grep_string<cr>", desc = "Search word under cursor" },
-        -- Directories
-        { "<leader>pd", function()
-            require("telescope.builtin").find_files({
-                find_command = { "find", ".", "-type", "d", "-o", "(", "-type", "l", "-xtype", "d", ")", "-not", "-path", "*/.git/*" },
-                attach_mappings = function(_, map)
-                    map("i", "<CR>", function(prompt_bufnr)
-                        local entry = require("telescope.actions.state").get_selected_entry()
-                        require("telescope.actions").close(prompt_bufnr)
-                        vim.cmd("Ex " .. entry.value)
-                    end)
-                    return true
-                end,
-            })
-        end, desc = "Find directory" },
+        -- Directories (fast: fd | fzf | head, same pattern as arjun.telescope_fast_find)
+        { "<leader>pd", function() require("arjun.telescope_fast_find").open_directories() end, desc = "Find directory" },
         -- LSP Symbols (Ctrl-Shift-O in VS Code)
         { "<leader>po", "<cmd>Telescope lsp_document_symbols<cr>", desc = "Document symbols" },
         { "<leader>pov", function() require("telescope.builtin").lsp_document_symbols({ symbols = { "variable", "constant" } }) end, desc = "Document variables" },
