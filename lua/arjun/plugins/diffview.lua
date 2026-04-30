@@ -5,7 +5,18 @@ return {
         { "<leader>gd", "<cmd>DiffviewOpen<cr>", desc = "Diffview: open" },
         { "<leader>gh", "<cmd>DiffviewFileHistory %<cr>", desc = "Diffview: file history" },
         { "<leader>gq", "<cmd>DiffviewClose<cr>", desc = "Diffview: close" },
-        { "<leader>gm", "<cmd>DiffviewOpen origin/main...HEAD<cr>", desc = "Diffview: diff against main (merge base)" },
+        {
+            "<leader>gm",
+            function()
+                local base = vim.fn.systemlist({ "git", "merge-base", "origin/main", "HEAD" })[1]
+                if vim.v.shell_error ~= 0 or not base or base == "" then
+                    vim.notify("git merge-base origin/main HEAD failed", vim.log.levels.ERROR)
+                    return
+                end
+                vim.cmd("DiffviewOpen " .. base)
+            end,
+            desc = "Diffview: diff against main (merge base)",
+        },
         { "<leader>gs", "<cmd>DiffviewOpen --staged<cr>", desc = "Diffview: diff against main (merge base)" },
     },
     config = function()
