@@ -14,6 +14,13 @@ vim.keymap.set("n", "Q", "@u", { desc = "Replay macro u" })
 vim.keymap.set("n", "<leader>ca", vim.lsp.buf.code_action, { desc = "Code action" })
 vim.keymap.set("n", "<leader>cf", vim.lsp.buf.format, { desc = "Format buffer" })
 vim.keymap.set("n", "<leader>cr", vim.lsp.buf.rename, { desc = "Rename symbol" })
+vim.keymap.set("n", "<leader>cR", function()
+    local clients = vim.lsp.get_clients({ bufnr = 0 })
+    for _, client in ipairs(clients) do
+        vim.lsp.stop_client(client.id, true)
+    end
+    vim.defer_fn(function() vim.cmd("edit") end, 100)
+end, { desc = "Restart LSP server(s)" })
 vim.keymap.set("n", "gd", vim.lsp.buf.definition, { desc = "Go to definition" })
 vim.keymap.set("n", "gtd", vim.lsp.buf.type_definition, { desc = "Go to type definition" })
 vim.keymap.set("n", "K", vim.lsp.buf.hover, { desc = "Hover documentation" })
