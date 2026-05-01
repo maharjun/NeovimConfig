@@ -418,6 +418,17 @@ end, { desc = "Select Python venv (project)" })
 
 This does not affect file/grep searches — only the VenvSelect picker sees the empty pattern list.
 
+### Arglist navigation fails with E37 (`No write since last change`)
+
+**Symptom:** `<leader>j` / `<leader>k` (arglist next/prev) complains about unsaved changes, even though `<leader>pb` (Telescope buffers) switches between modified buffers without issue.
+
+**Root cause:** The two keymaps go through different Vim commands:
+
+- `<leader>pb` (Telescope buffers) selects an entry with `bufnr` and runs `:buffer N` — a pure buffer-list switch on an already-loaded buffer. With `'hidden'` set (Neovim default), the modified current buffer just gets hidden.
+- `<leader>j` / `<leader>k` rebuild the arglist via `set_arglist()` in `lua/arjun/arglist.lua`. The original code called `:Nargument` to position Vim's internal arglist cursor at the current file. `:Nargument` is treated as `:edit <file at position N>`, and editing the **same** file Vim is already showing is a **reload from disk**, not a buffer switch. The reload check (E37 / E162) fires for any modified buffer, **regardless of `'hidden'`** — `'hidden'` governs leaving a buffer, not reloading it.
+
+**Fix:** `set_arglist()` no longer calls `:Nargument`. The picker uses `current_arg_index()` (path comparison against `argv()`) to locate the current file, so Vim's internal arglist cursor doesn't need to be synced. Side effect: native `:next` / `:prev` start at arglist index 1 instead of tracking the current file — acceptable since the navigation goes through the Telescope picker.
+
 ### LSP not starting
 - Run `:LspInfo` to check status
 - Ensure the server is installed via `:Mason`

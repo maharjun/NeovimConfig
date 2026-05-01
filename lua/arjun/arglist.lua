@@ -60,13 +60,6 @@ local function set_arglist(files)
         table.insert(parts, vim.fn.fnameescape(f))
     end
     vim.cmd("argadd " .. table.concat(parts, " "))
-    local current = vim.fn.expand("%:p")
-    for i, f in ipairs(files) do
-        if f == current then
-            vim.cmd(i .. "argument")
-            return
-        end
-    end
 end
 
 function M.pick()
