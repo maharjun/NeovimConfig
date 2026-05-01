@@ -9,6 +9,17 @@ return {
     },
     config = function()
         local telescope = require("telescope")
+        local actions = require("telescope.actions")
+        local action_state = require("telescope.actions.state")
+
+        local close_saving_history = function(prompt_bufnr)
+            local line = action_state.get_current_line()
+            if line and line ~= "" then
+                action_state.get_current_history():append(line, action_state.get_current_picker(prompt_bufnr))
+            end
+            actions.close(prompt_bufnr)
+        end
+
         telescope.setup({
             defaults = {
                 sorting_strategy = "ascending",
@@ -16,6 +27,21 @@ return {
                 layout_config = {
                     horizontal = {
                         preview_width = 0.5,
+                    },
+                },
+                history = {
+                    path = vim.fn.stdpath("data") .. "/telescope_history",
+                    limit = 200,
+                },
+                mappings = {
+                    i = {
+                        ["<C-c>"] = close_saving_history,
+                        ["<C-p>"] = actions.cycle_history_prev,
+                        ["<C-n>"] = actions.cycle_history_next,
+                    },
+                    n = {
+                        ["<Esc>"] = close_saving_history,
+                        ["q"] = close_saving_history,
                     },
                 },
             },
