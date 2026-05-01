@@ -8,14 +8,12 @@ return {
         require("venv-selector").setup({
             options = {
                 enable_cached_venvs = false,
-                -- Show just the venv folder name instead of full path
                 on_telescope_result_callback = function(filename)
-                    -- Extract venv name from path like /path/to/.venv-name/bin/python
-                    local venv_name = filename:match("([^/]+)/bin/python$")
-                    if venv_name then
-                        return venv_name
+                    local cwd = vim.fn.getcwd()
+                    if vim.startswith(filename, cwd .. "/") then
+                        return (filename:sub(#cwd + 2):gsub("/bin/python$", ""))
                     end
-                    return filename
+                    return filename:match("([^/]+)/bin/python$") or filename
                 end,
             },
         })
