@@ -293,7 +293,11 @@ local function rank_and_cap(items, prompt, n)
     return head(ranked, n)
 end
 
-M.progressive = { items = {}, seen = {}, root = nil }
+-- Per-letter buckets: `by_letter[c]` is the deduped list of symbols
+-- `workspace/symbol{query=c}` returned. Typing "foo" filters bucket["f"]
+-- locally; typing "bar" filters bucket["b"]. Each bucket is independently
+-- refreshed (full replacement) on the corresponding first-letter event.
+M.progressive = { by_letter = {}, root = nil }
 
 --- Toggle debug logs to `:messages` for the progressive picker pipeline.
 M.debug_progressive = false
@@ -305,7 +309,7 @@ end
 
 local function reset_progressive_if_needed(root)
     if M.progressive.root ~= root then
-        M.progressive = { items = {}, seen = {}, root = root }
+        M.progressive = { by_letter = {}, root = root }
     end
 end
 
@@ -329,20 +333,33 @@ function M.open_progressive(opts)
     local in_flight_cancels = {} ---@type function[]
     local prev_prompt = ""
 
-    local function visible_items()
+    -- Items for the bucket matching `prompt`'s first letter, filtered by
+    -- the current kind selection.
+    local function visible_items(prompt)
+        local first = (prompt or ""):sub(1, 1):lower()
+        if first == "" then return {} end
+        local bucket = M.progressive.by_letter[first]
+        if not bucket then return {} end
         if opts.symbols then
-            -- filter_symbols mutates opts.symbols (lowercases it). Pass a copy
-            -- of the kinds list each call so repeated picker opens stay safe.
-            return utils.filter_symbols(M.progressive.items,
+            -- filter_symbols mutates opts.symbols (lowercases it). Pass a
+            -- copy of the kinds list each call so repeated picker opens
+            -- stay safe.
+            return utils.filter_symbols(bucket,
                 { symbols = vim.deepcopy(opts.symbols) }) or {}
         end
-        return M.progressive.items
+        return bucket
     end
 
-    -- Merge a `workspace/symbol` LSP response into M.progressive.items.
-    -- Returns true if any new (non-duplicate) symbols were added.
-    local function ingest(results)
-        local added = false
+    -- Replace `by_letter[letter]` with the fresh LSP response. Full
+    -- replacement (not merge) ensures stale entries from a prior analysis
+    -- context — e.g. an LSP restart after a venv switch where the server
+    -- now indexes a different file tree — drop out cleanly. The local
+    -- `seen` set dedupes across multiple LSP clients in this single
+    -- response (buf_request_all hits every attached server) but isn't
+    -- kept around afterwards — there's nothing to dedupe against once
+    -- the bucket is finalized.
+    local function ingest(letter, results)
+        local new_items, seen = {}, {}
         for client_id, client_res in pairs(results or {}) do
             if client_res.result then
                 local client = vim.lsp.get_client_by_id(client_id)
@@ -352,16 +369,16 @@ function M.open_progressive(opts)
                 )
                 for _, item in ipairs(items) do
                     local k = dedup_key(item)
-                    if not M.progressive.seen[k] then
-                        M.progressive.seen[k] = true
+                    if not seen[k] then
+                        seen[k] = true
                         item.name = strip_kind_prefix(item.text)
-                        M.progressive.items[#M.progressive.items + 1] = item
-                        added = true
+                        new_items[#new_items + 1] = item
                     end
                 end
             end
         end
-        return added
+        M.progressive.by_letter[letter] = new_items
+        return #new_items > 0
     end
 
     -- Forward-declared so build_finder's closure binds to this local rather
@@ -374,9 +391,10 @@ function M.open_progressive(opts)
         return finders.new_dynamic({
             entry_maker = opts.entry_maker or make_entry.gen_from_lsp_symbols(opts),
             fn = function(prompt)
-                dlog("fn called: prompt=%q cache=%d", prompt or "", #M.progressive.items)
+                local items = visible_items(prompt)
+                dlog("fn called: prompt=%q bucket=%d", prompt or "", #items)
                 maybe_fetch(prompt)
-                local out = rank_and_cap(visible_items(), prompt, TOP_N)
+                local out = rank_and_cap(items, prompt, TOP_N)
                 dlog("fn returning: %d items", #out)
                 return out
             end,
@@ -430,15 +448,15 @@ function M.open_progressive(opts)
                 for _, r in pairs(results or {}) do
                     if r.result then raw = raw + #r.result end
                 end
-                local added = ingest(results)
-                dlog("LSP %q done: %.0fms raw=%d added=%s cache=%d",
-                    first, elapsed, raw, tostring(added), #M.progressive.items)
-                if added then
-                    vim.schedule(function()
-                        dlog("scheduled refresh fired")
-                        refresh_if_open()
-                    end)
-                end
+                local has_items = ingest(first, results)
+                local bucket = M.progressive.by_letter[first]
+                dlog("LSP %q done: %.0fms raw=%d has_items=%s bucket=%d",
+                    first, elapsed, raw, tostring(has_items),
+                    bucket and #bucket or 0)
+                vim.schedule(function()
+                    dlog("scheduled refresh fired")
+                    refresh_if_open()
+                end)
             end
         )
         in_flight_cancels[#in_flight_cancels + 1] = cancel
@@ -476,7 +494,7 @@ function M.open_progressive(opts)
 end
 
 vim.api.nvim_create_user_command("WsSymbolProgressiveClear", function()
-    M.progressive = { items = {}, seen = {}, root = nil }
+    M.progressive = { by_letter = {}, root = nil }
     vim.notify("Progressive symbol cache cleared", vim.log.levels.INFO)
 end, {})
 

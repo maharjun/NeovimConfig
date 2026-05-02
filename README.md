@@ -114,13 +114,28 @@ The custom picker addresses both with **progressive caching** plus
   anything you can narrow into by typing more.
 - **Subsequent characters never trigger LSP.** Typing `f` → `fo` → `foo`
   re-ranks the existing cache locally; no LSP traffic.
-- **Refresh on response arrival.** When the LSP response lands, new items
-  dedupe-merge into the cache and `picker:refresh(new_finder, { reset_prompt = false })`
-  re-runs the finder so the visible list expands without blocking input. We
-  pass a freshly-built finder (the canonical pattern telescope's own git
-  pickers use for live updates) — the bare `picker:refresh(nil, {})` form
-  signals the main loop but doesn't go through telescope's keystroke path,
-  so the visible list stays stale until the user types.
+- **Per-letter buckets.** The cache is a dictionary keyed by first
+  letter — `by_letter["c"]` is the flat list of symbols pyright returned
+  for `workspace/symbol{query="c"}`. Typing a prompt that starts with `f`
+  filters the `f` bucket; typing `b` filters the `b` bucket. Each letter
+  is independent — re-fetching `f` only replaces the `f` bucket, never
+  evicts symbols from `b`. Reopen the picker, type `b`, and you see the
+  prior `b` results immediately while a fresh background fetch runs.
+  Cross-client dedup happens once during ingest (since `buf_request_all`
+  queries every attached LSP) and isn't kept around — every replace
+  builds a fresh bucket from scratch, so there's nothing to dedupe
+  against.
+- **Refresh on response arrival.** When the LSP response lands, the
+  letter's bucket is **fully replaced** with the new result set — not
+  merged. This way a prior analysis context (e.g. before a venv switch
+  and LSP restart that now indexes a different file tree) doesn't leave
+  stale entries lingering in that bucket. Other letters' buckets are
+  untouched. Then `picker:refresh(new_finder, { reset_prompt = false })`
+  re-runs the finder so the visible list expands without blocking input.
+  We pass a freshly-built finder (the canonical pattern telescope's own
+  git pickers use for live updates) — the bare `picker:refresh(nil, {})`
+  form signals the main loop but doesn't go through telescope's keystroke
+  path, so the visible list stays stale until the user types.
 - **Clear and retype** is another first-character event. Backspace to empty,
   type `b`, and a fresh fetch fires for `b`. The earlier in-flight fetch is
   not cancelled — its results still merge into the cache when they arrive.
@@ -130,9 +145,11 @@ The custom picker addresses both with **progressive caching** plus
   `sorters.highlighter_only`, so telescope only paints highlights — it
   doesn't re-rank. Same idea as `<leader>pf`'s `fd | fzf --filter | head`
   pipeline.
-- **Cross-session cache.** The cache persists across picker close/open for
-  the same LSP root. Switching projects auto-invalidates (cache is keyed on
-  the LSP `root_dir`). Manual reset: `:WsSymbolProgressiveClear`.
+- **Cross-session cache.** All letter buckets persist across picker
+  close/open for the same LSP root. Each bucket independently holds
+  results from the most recent fetch for that letter. Switching projects
+  auto-invalidates the whole cache (keyed on the LSP `root_dir`). Manual
+  reset: `:WsSymbolProgressiveClear`.
 - **In-flight cleanup.** Any pending LSP fetches are cancelled only when the
   picker actually closes (via a `BufWipeout` autocmd on the prompt buffer),
   never on intermediate keystrokes. The autocmd must be registered *after*
