@@ -81,10 +81,10 @@ Leader key is `<Space>`.
 | `<leader>pov` | Document variables |
 | `<leader>pof` | Document functions |
 | `<leader>poc` | Document classes |
-| `<leader>pa` | All workspace symbols (progressive cache) |
-| `<leader>pav` | Workspace variables (progressive cache) |
-| `<leader>paf` | Workspace functions (progressive cache) |
-| `<leader>pac` | Workspace classes (progressive cache) |
+| `<leader>pa` | All workspace symbols (progressive) |
+| `<leader>pav` | Workspace variables (progressive) |
+| `<leader>paf` | Workspace functions (progressive) |
+| `<leader>pac` | Workspace classes (progressive) |
 | `<leader>pv` | Open file explorer (netrw) |
 
 #### Workspace symbols picker (`<leader>pa*`)

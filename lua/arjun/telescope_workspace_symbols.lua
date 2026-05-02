@@ -2,6 +2,23 @@ local M = {}
 
 local MAX_RESULTS = 50
 
+local KIND_LABELS = {
+    ["function"] = "functions",
+    method = "functions",
+    variable = "variables",
+    constant = "variables",
+    class = "classes",
+    struct = "structs",
+    enum = "enums",
+    interface = "interfaces",
+}
+
+local function label_for_kinds(symbols)
+    if not symbols or #symbols == 0 then return "symbols" end
+    local first = string.lower(symbols[1])
+    return KIND_LABELS[first] or (first .. "s")
+end
+
 --- Toggle timing logs to `:messages`. Flip with `:lua require("arjun.telescope_workspace_symbols").profile = false`.
 M.profile = true
 
@@ -83,7 +100,9 @@ function M.open(opts)
     local actions = require("telescope.actions")
 
     pickers.new(opts, {
-        prompt_title = opts.prompt_title or ("Workspace symbols (top " .. MAX_RESULTS .. ")"),
+        prompt_title = opts.prompt_title or string.format(
+            "Workspace %s (top %d)", label_for_kinds(opts.symbols), MAX_RESULTS
+        ),
         finder = finders.new_dynamic({
             entry_maker = opts.entry_maker or make_entry.gen_from_lsp_symbols(opts),
             fn = make_requester(bufnr, opts),
@@ -95,25 +114,6 @@ function M.open(opts)
             return true
         end,
     }):find()
-end
-
--- Cached path: basedpyright returns 0 for empty query, so we sweep single-char
--- queries across [a-z 0-9 _] (every Python identifier contains at least one)
--- to materialize the full symbol table once, then filter client-side forever.
-
-M.cache_ttl_ms = 10 * 60 * 1000
-M.cache = { items = nil, at = 0, root = nil }
-
-local function alphabet()
-    local chars = {}
-    for c = string.byte("a"), string.byte("z") do
-        chars[#chars + 1] = string.char(c)
-    end
-    for c = string.byte("0"), string.byte("9") do
-        chars[#chars + 1] = string.char(c)
-    end
-    chars[#chars + 1] = "_"
-    return chars
 end
 
 local function dedup_key(item)
@@ -132,132 +132,6 @@ local function root_for(bufnr)
     end
     return vim.fn.getcwd()
 end
-
---- Sweep [a-z 0-9 _] one character at a time, union into a deduped item list.
---- @param bufnr integer Buffer to use for the LSP request.
---- @param on_done fun(items: table[], elapsed_ms: number) Called once when sweep completes.
-function M.warm(bufnr, on_done)
-    bufnr = bufnr or vim.api.nvim_get_current_buf()
-    local chars = alphabet()
-    local seen, items = {}, {}
-    local i = 0
-    local t_start = vim.uv.hrtime()
-
-    local function step()
-        i = i + 1
-        if i > #chars then
-            local elapsed = ms_since(t_start)
-            on_done(items, elapsed)
-            return
-        end
-        local ch = chars[i]
-        vim.notify(
-            string.format("Indexing workspace symbols [%d/%d] %q (%d so far)", i, #chars, ch, #items),
-            vim.log.levels.INFO
-        )
-        vim.lsp.buf_request_all(bufnr, "workspace/symbol", { query = ch }, function(results)
-            for client_id, client_res in pairs(results) do
-                if client_res.result then
-                    local client = vim.lsp.get_client_by_id(client_id)
-                    local part = vim.lsp.util.symbols_to_items(
-                        client_res.result,
-                        bufnr,
-                        client and client.offset_encoding
-                    )
-                    for _, item in ipairs(part) do
-                        local k = dedup_key(item)
-                        if not seen[k] then
-                            seen[k] = true
-                            items[#items + 1] = item
-                        end
-                    end
-                end
-            end
-            vim.schedule(step)
-        end)
-    end
-    step()
-end
-
-local function cache_is_fresh(bufnr)
-    if not M.cache.items then return false end
-    if (vim.uv.now() - M.cache.at) >= M.cache_ttl_ms then return false end
-    if M.cache.root ~= root_for(bufnr) then return false end
-    return true
-end
-
-local function open_static(items, opts)
-    opts = opts or {}
-    local utils = require("telescope.utils")
-    local pickers = require("telescope.pickers")
-    local finders = require("telescope.finders")
-    local make_entry = require("telescope.make_entry")
-    local conf = require("telescope.config").values
-
-    local filtered = items
-    if opts.symbols then
-        filtered = utils.filter_symbols(items, opts) or {}
-    end
-
-    pickers.new(opts, {
-        prompt_title = opts.prompt_title or string.format("Workspace symbols (cached, %d)", #filtered),
-        finder = finders.new_table({
-            results = filtered,
-            entry_maker = opts.entry_maker or make_entry.gen_from_lsp_symbols(opts),
-        }),
-        sorter = conf.generic_sorter(opts),
-        previewer = conf.qflist_previewer(opts),
-    }):find()
-end
-
---- Open a fully-cached workspace symbols picker. First call sweeps a-z/0-9/_ to
---- populate the cache (~20s on a moderate workspace); subsequent calls within
---- `cache_ttl_ms` are instant and filter client-side.
---- @param opts table|nil `symbols` filters by kind; passed to telescope.
-function M.open_cached(opts)
-    opts = opts or {}
-    local bufnr = vim.api.nvim_get_current_buf()
-    opts.bufnr = bufnr
-
-    if cache_is_fresh(bufnr) then
-        open_static(M.cache.items, opts)
-        return
-    end
-
-    local root = root_for(bufnr)
-    vim.notify("Indexing workspace symbols (one-time per session)...", vim.log.levels.INFO)
-    M.warm(bufnr, function(items, elapsed_ms)
-        M.cache.items = items
-        M.cache.at = vim.uv.now()
-        M.cache.root = root
-        vim.notify(
-            string.format("Cached %d symbols in %.0fms", #items, elapsed_ms),
-            vim.log.levels.INFO
-        )
-        open_static(items, opts)
-    end)
-end
-
---- Drop the cache; next `open_cached` will re-sweep.
-function M.invalidate()
-    M.cache = { items = nil, at = 0, root = nil }
-    vim.notify("Workspace symbol cache cleared", vim.log.levels.INFO)
-end
-
-vim.api.nvim_create_user_command("WsSymbolCacheClear", function() M.invalidate() end, {})
-vim.api.nvim_create_user_command("WsSymbolCacheWarm", function()
-    local bufnr = vim.api.nvim_get_current_buf()
-    local root = root_for(bufnr)
-    M.warm(bufnr, function(items, elapsed_ms)
-        M.cache.items = items
-        M.cache.at = vim.uv.now()
-        M.cache.root = root
-        vim.notify(
-            string.format("Cached %d symbols in %.0fms", #items, elapsed_ms),
-            vim.log.levels.INFO
-        )
-    end)
-end, {})
 
 -- Progressive path: cache grows lazily as the user types. Each new first-letter
 -- triggers an async LSP fetch (not cancelled mid-flight); the prompt filters
@@ -463,7 +337,9 @@ function M.open_progressive(opts)
     end
 
     local picker = pickers.new(opts, {
-        prompt_title = opts.prompt_title or string.format("Workspace symbols (progressive, top %d)", TOP_N),
+        prompt_title = opts.prompt_title or string.format(
+            "Workspace %s (progressive, top %d)", label_for_kinds(opts.symbols), TOP_N
+        ),
         finder = build_finder(),
         -- highlighter_only: skip telescope's ranking pass; we already ordered
         -- via matchfuzzy and capped to TOP_N so its O(n*m) sort would just be
