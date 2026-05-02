@@ -10,7 +10,9 @@ return {
     config = function()
         local telescope = require("telescope")
         local actions = require("telescope.actions")
+        local action_layout = require("telescope.actions.layout")
         local action_state = require("telescope.actions.state")
+        local layout_strategies = require("telescope.pickers.layout_strategies")
 
         local close_saving_history = function(prompt_bufnr)
             local line = action_state.get_current_line()
@@ -20,15 +22,22 @@ return {
             actions.close(prompt_bufnr)
         end
 
+        layout_strategies.horizontal_narrow = function(picker, max_columns, max_lines, layout_config)
+            layout_config = vim.tbl_deep_extend("force", layout_config or {}, { preview_width = 0.4 })
+            return layout_strategies.horizontal(picker, max_columns, max_lines, layout_config)
+        end
+
+        layout_strategies.horizontal_wide = function(picker, max_columns, max_lines, layout_config)
+            layout_config = vim.tbl_deep_extend("force", layout_config or {}, { preview_width = 0.7 })
+            return layout_strategies.horizontal(picker, max_columns, max_lines, layout_config)
+        end
+
         telescope.setup({
             defaults = {
                 sorting_strategy = "ascending",
                 path_display = { "smart" },
-                layout_config = {
-                    horizontal = {
-                        preview_width = 0.5,
-                    },
-                },
+                layout_strategy = "horizontal_narrow",
+                cycle_layout_list = { "horizontal_narrow", "horizontal_wide" },
                 history = {
                     path = vim.fn.stdpath("data") .. "/telescope_history",
                     limit = 200,
@@ -38,10 +47,12 @@ return {
                         ["<C-c>"] = close_saving_history,
                         ["<C-p>"] = actions.cycle_history_prev,
                         ["<C-n>"] = actions.cycle_history_next,
+                        ["<M-l>"] = action_layout.cycle_layout_next,
                     },
                     n = {
                         ["<Esc>"] = close_saving_history,
                         ["q"] = close_saving_history,
+                        ["<M-l>"] = action_layout.cycle_layout_next,
                     },
                 },
             },
