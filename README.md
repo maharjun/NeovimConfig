@@ -81,11 +81,75 @@ Leader key is `<Space>`.
 | `<leader>pov` | Document variables |
 | `<leader>pof` | Document functions |
 | `<leader>poc` | Document classes |
-| `<leader>pa` | All workspace symbols (LSP) |
-| `<leader>pav` | Workspace variables |
-| `<leader>paf` | Workspace functions |
-| `<leader>pac` | Workspace classes |
+| `<leader>pa` | All workspace symbols (progressive cache) |
+| `<leader>pav` | Workspace variables (progressive cache) |
+| `<leader>paf` | Workspace functions (progressive cache) |
+| `<leader>pac` | Workspace classes (progressive cache) |
 | `<leader>pv` | Open file explorer (netrw) |
+
+#### Workspace symbols picker (`<leader>pa*`)
+
+The `<leader>pa*` keymaps go through a custom picker
+(`lua/arjun/telescope_workspace_symbols.lua`) rather than telescope's stock
+`lsp_dynamic_workspace_symbols`. The custom path works around two issues that
+make the stock picker stutter on large Python projects served by basedpyright:
+
+1. **basedpyright returns 0 results for an empty `workspace/symbol` query.**
+   Despite the LSP spec saying empty should return all symbols, basedpyright's
+   `WorkspaceSymbolProvider._reportSymbolsForProgram` opens with
+   `if (!this._query) return;` and bails. So the stock picker shows nothing
+   on open and has to re-query on every keystroke.
+2. **Telescope's sorter is O(n·m) per keystroke.** On thousands of entries it
+   re-ranks the full list each prompt change, which dominates the picker's
+   end-to-end latency once basedpyright has warmed.
+
+The custom picker addresses both with **progressive caching** plus
+**pre-filter-and-cap before telescope**:
+
+- **First-character fetch.** When the picker is open and the prompt
+  transitions from empty to non-empty (i.e. you just typed the first
+  character of a search), one async `workspace/symbol` request fires for that
+  single letter. basedpyright does case-insensitive substring matching, so
+  the response covers every symbol containing that letter — a superset of
+  anything you can narrow into by typing more.
+- **Subsequent characters never trigger LSP.** Typing `f` → `fo` → `foo`
+  re-ranks the existing cache locally; no LSP traffic.
+- **Refresh on response arrival.** When the LSP response lands, new items
+  dedupe-merge into the cache and `picker:refresh(new_finder, { reset_prompt = false })`
+  re-runs the finder so the visible list expands without blocking input. We
+  pass a freshly-built finder (the canonical pattern telescope's own git
+  pickers use for live updates) — the bare `picker:refresh(nil, {})` form
+  signals the main loop but doesn't go through telescope's keystroke path,
+  so the visible list stays stale until the user types.
+- **Clear and retype** is another first-character event. Backspace to empty,
+  type `b`, and a fresh fetch fires for `b`. The earlier in-flight fetch is
+  not cancelled — its results still merge into the cache when they arrive.
+- **Pre-filter-and-cap.** On each keystroke the finder runs
+  `vim.fn.matchfuzzy(items, prompt, { key = "name" })` and truncates to the
+  top 50 *before* handing entries to telescope. The picker uses
+  `sorters.highlighter_only`, so telescope only paints highlights — it
+  doesn't re-rank. Same idea as `<leader>pf`'s `fd | fzf --filter | head`
+  pipeline.
+- **Cross-session cache.** The cache persists across picker close/open for
+  the same LSP root. Switching projects auto-invalidates (cache is keyed on
+  the LSP `root_dir`). Manual reset: `:WsSymbolProgressiveClear`.
+- **In-flight cleanup.** Any pending LSP fetches are cancelled only when the
+  picker actually closes (via a `BufWipeout` autocmd on the prompt buffer),
+  never on intermediate keystrokes. The autocmd must be registered *after*
+  `picker:find()` — telescope only assigns `prompt_bufnr` inside `find()`,
+  so registering earlier ends up with `buffer = nil`, which silently
+  becomes `pattern = "*"` and fires the cleanup on the first BufWipeout
+  anywhere in nvim.
+
+For diagnostic logging during refresh investigations, set
+`require("arjun.telescope_workspace_symbols").debug_progressive = true`
+to print every finder call, LSP response, and refresh hop to `:messages`.
+
+> **Required:** basedpyright must exclude `.venv` directories. With `.venv`
+> indexed, `workspace/symbol` on the `full-sw-desktop-port` workspace
+> returned 35,680 results in 117s; with `.venv` excluded it dropped to 1,054
+> results in 3.3s cold and ~500ms warm. Add `.venv` (and any other vendored
+> directories) to `exclude` in `pyrightconfig.json`.
 
 ### Git (Neogit + Diffview)
 

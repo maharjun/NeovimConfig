@@ -84,9 +84,9 @@ return {
         { "<leader>pov", function() require("telescope.builtin").lsp_document_symbols({ symbols = { "variable", "constant" } }) end, desc = "Document variables" },
         { "<leader>pof", function() require("telescope.builtin").lsp_document_symbols({ symbols = { "function", "method" } }) end, desc = "Document functions" },
         { "<leader>poc", function() require("telescope.builtin").lsp_document_symbols({ symbols = { "class" } }) end, desc = "Document classes" },
-        { "<leader>pa", "<cmd>Telescope lsp_dynamic_workspace_symbols<cr>", desc = "All workspace symbols" },
-        { "<leader>pav", function() require("telescope.builtin").lsp_dynamic_workspace_symbols({ symbols = { "variable", "constant" } }) end, desc = "Workspace variables" },
-        { "<leader>paf", function() require("telescope.builtin").lsp_dynamic_workspace_symbols({ symbols = { "function", "method" } }) end, desc = "Workspace functions" },
-        { "<leader>pac", function() require("telescope.builtin").lsp_dynamic_workspace_symbols({ symbols = { "class" } }) end, desc = "Workspace classes" },
+        { "<leader>pa", function() require("arjun.telescope_workspace_symbols").open_progressive() end, desc = "All workspace symbols (progressive)" },
+        { "<leader>pav", function() require("arjun.telescope_workspace_symbols").open_progressive({ symbols = { "variable", "constant" } }) end, desc = "Workspace variables (progressive)" },
+        { "<leader>paf", function() require("arjun.telescope_workspace_symbols").open_progressive({ symbols = { "function", "method" } }) end, desc = "Workspace functions (progressive)" },
+        { "<leader>pac", function() require("arjun.telescope_workspace_symbols").open_progressive({ symbols = { "class" } }) end, desc = "Workspace classes (progressive)" },
     },
 }
