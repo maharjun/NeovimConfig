@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- **Neovim 0.11+** (this config uses native LSP features)
+- **Neovim 0.12+** (this config uses the native `vim.lsp.config` / `vim.lsp.enable` API and the builtin `:lsp` command)
 - **fd** (for venv-selector): `sudo apt install fd-find && sudo ln -s $(which fdfind) /usr/local/bin/fd`
 - **ripgrep** (for Telescope live grep): `sudo apt install ripgrep`
 - **fzf** (for quickfix filtering): `sudo apt install fzf`
@@ -43,7 +43,7 @@ npm install -g tree-sitter-cli
         ├── undotree.lua          # Undo history visualization
         ├── visual-multi.lua      # Multi-cursor editing
         ├── neogit.lua            # Git interface
-        ├── lsp.lua               # LSP, Mason, autocompletion
+        ├── lsp.lua               # Mason + nvim-lspconfig (config DB) + nvim-cmp; LSP lifecycle is native
         ├── venv-selector.lua     # Python venv switching
         ├── ufo.lua               # Code folding
         ├── neoscroll.lua         # Smooth scrolling
@@ -61,7 +61,8 @@ npm install -g tree-sitter-cli
 1. Clone or copy this config to `~/.config/nvim/`
 2. Open Neovim - Lazy.nvim will auto-bootstrap
 3. Run `:Lazy sync` to install all plugins
-4. Run `:Mason` to install LSP servers (e.g., `basedpyright` for Python)
+4. Run `:Mason` to install LSP server binaries (e.g., `basedpyright`, `ruff`)
+5. Add the server's lspconfig name to the `vim.lsp.enable({...})` list in `lua/arjun/plugins/lsp.lua` so it auto-attaches
 
 ## Keymaps
 
@@ -85,6 +86,9 @@ Leader key is `<Space>`.
 | `<leader>pav` | Workspace variables (progressive) |
 | `<leader>paf` | Workspace functions (progressive) |
 | `<leader>pac` | Workspace classes (progressive) |
+| `<leader>pl` | Pick scroll-list preset |
+| `<leader>j` | Scroll-list next (open picker positioned at next item) |
+| `<leader>k` | Scroll-list previous (open picker positioned at previous item) |
 | `<leader>pv` | Open file explorer (netrw) |
 
 #### Workspace symbols picker (`<leader>pa*`)
@@ -167,6 +171,32 @@ to print every finder call, LSP response, and refresh hop to `:messages`.
 > returned 35,680 results in 117s; with `.venv` excluded it dropped to 1,054
 > results in 3.3s cold and ~500ms warm. Add `.venv` (and any other vendored
 > directories) to `exclude` in `pyrightconfig.json`.
+
+#### Scroll list (`<leader>j` / `<leader>k` / `<leader>pl`)
+
+`<leader>j` and `<leader>k` open a Telescope picker positioned at the next /
+previous item in a *scroll list* — one keystroke advances, and the picker
+stays open so you can keep walking the list, fuzzy-search inside it, or
+preview before committing. `<leader>pl` chooses the preset that populates
+the list; two ship by default:
+
+- **Files in current folder (alphabetical)** — every regular file in the
+  current buffer's directory, sorted by name.
+- **Open buffers (most recent first)** — every listed buffer, ordered by
+  `lastused`. Unlike a path-based list this includes terminals, scratch
+  buffers, and `[No Name]` entries; unnamed buffers show a 20-char preview
+  of their first non-blank line for disambiguation.
+
+The list is rebuilt on each `<leader>j` / `<leader>k` press, so newly
+opened files and buffers appear automatically. The current item is matched
+by `bufnr` (buffer entries) or absolute path (file entries); activation
+calls `:buffer N` or `:edit <path>` accordingly.
+
+Internals: presets live in `lua/arjun/scroller.lua`. Items have shape
+`{ kind = "buffer", bufnr, display }` or `{ kind = "file", path, display }`.
+The picker is an in-house `pickers.new` (so non-file buffers can show up) —
+the previous `sam4llis/telescope-arglist.nvim` extension was files-only and
+is no longer a dependency.
 
 ### Git (Neogit + Diffview)
 
@@ -283,6 +313,7 @@ Open brackets `([{` add **no padding**, close brackets `)]}` add **padding**.
 | `<leader>ca` | Code action (show fixes) |
 | `<leader>cf` | Format buffer |
 | `<leader>cr` | Rename symbol |
+| `<leader>cR` | Restart LSP server(s) attached to buffer (`:lsp restart`) |
 | `gd` | Go to definition |
 | `K` | Hover documentation |
 | `]d` | Next diagnostic |
@@ -323,13 +354,33 @@ Open brackets `([{` add **no padding**, close brackets `)]}` add **padding**.
 
 ## LSP Setup
 
-LSP is managed via Mason. To install a language server:
+LSP lifecycle uses Neovim 0.11+'s native `vim.lsp.config` / `vim.lsp.enable` API. There is no `mason-lspconfig` shim — Mason installs binaries, `nvim-lspconfig` ships ready-made server configs under its `lsp/` dir, and `lua/arjun/plugins/lsp.lua` enables the ones we want:
 
-1. Run `:Mason`
-2. Search for the server (e.g., `basedpyright`)
-3. Press `i` to install
+```lua
+vim.lsp.config("*", {
+    capabilities = require("cmp_nvim_lsp").default_capabilities(),
+})
+vim.lsp.enable({ "basedpyright", "ruff" })
+```
 
-Installed servers are auto-enabled when you open a file of that type.
+`vim.lsp.config("*", ...)` sets defaults merged into every server (here: nvim-cmp completion capabilities). `vim.lsp.enable({...})` registers a `FileType` autocmd so the server auto-attaches when you open a matching buffer.
+
+**Adding a server:**
+
+1. `:Mason` → install the binary (e.g. `lua-language-server`).
+2. Look up the lspconfig name (`:help lspconfig-all` or browse `~/.local/share/nvim/lazy/nvim-lspconfig/lsp/`). Mason package names and lspconfig names sometimes differ (e.g. `lua-language-server` → `lua_ls`).
+3. Add the lspconfig name to the `vim.lsp.enable({...})` call in `lua/arjun/plugins/lsp.lua`.
+4. To override settings for one server, add `vim.lsp.config("<name>", { settings = {...} })` before the `enable` call.
+
+**Useful commands** (all builtin on 0.12; no plugin needed):
+
+| Command | Action |
+|---------|--------|
+| `:lsp info` | Show attached clients, configs, and root dirs |
+| `:lsp restart [name]` | Stop matched clients and reattach to their buffers (no buffer reload, dirty buffers OK) |
+| `:lsp stop [name]` | Stop without restart |
+| `:lsp enable [name]` / `:lsp disable [name]` | Toggle a config's auto-attach |
+| `:checkhealth vim.lsp` | Full diagnostics |
 
 ### Configuring basedpyright
 
@@ -469,6 +520,7 @@ Add, delete, and replace surrounding characters (brackets, quotes, tags, etc.). 
 | `:Telescope <cmd>` | Run Telescope command |
 | `:TSUpdate` | Update Treesitter parsers |
 | `:MarkdownPreviewToggle` | Toggle markdown preview |
+| `:Bd` / `:bd` | Delete buffer without closing the window/tab (`:bd!` to discard unsaved changes); routed via `cnoreabbrev` so muscle-memory `:bd` works |
 
 ## Troubleshooting
 
@@ -499,21 +551,12 @@ end, { desc = "Select Python venv (project)" })
 
 This does not affect file/grep searches — only the VenvSelect picker sees the empty pattern list.
 
-### Arglist navigation fails with E37 (`No write since last change`)
-
-**Symptom:** `<leader>j` / `<leader>k` (arglist next/prev) complains about unsaved changes, even though `<leader>pb` (Telescope buffers) switches between modified buffers without issue.
-
-**Root cause:** The two keymaps go through different Vim commands:
-
-- `<leader>pb` (Telescope buffers) selects an entry with `bufnr` and runs `:buffer N` — a pure buffer-list switch on an already-loaded buffer. With `'hidden'` set (Neovim default), the modified current buffer just gets hidden.
-- `<leader>j` / `<leader>k` rebuild the arglist via `set_arglist()` in `lua/arjun/arglist.lua`. The original code called `:Nargument` to position Vim's internal arglist cursor at the current file. `:Nargument` is treated as `:edit <file at position N>`, and editing the **same** file Vim is already showing is a **reload from disk**, not a buffer switch. The reload check (E37 / E162) fires for any modified buffer, **regardless of `'hidden'`** — `'hidden'` governs leaving a buffer, not reloading it.
-
-**Fix:** `set_arglist()` no longer calls `:Nargument`. The picker uses `current_arg_index()` (path comparison against `argv()`) to locate the current file, so Vim's internal arglist cursor doesn't need to be synced. Side effect: native `:next` / `:prev` start at arglist index 1 instead of tracking the current file — acceptable since the navigation goes through the Telescope picker.
-
 ### LSP not starting
-- Run `:LspInfo` to check status
-- Ensure the server is installed via `:Mason`
+- Run `:lsp info` (or `:checkhealth vim.lsp`) to inspect attached clients and configs
+- Ensure the server binary is installed via `:Mason`
+- Ensure the server name appears in `vim.lsp.enable({...})` in `lua/arjun/plugins/lsp.lua`
 - Check `:messages` for errors
+- To bounce a server without losing unsaved changes, use `<leader>cR` (`:lsp restart`)
 
 ### Treesitter errors on startup
 - Run `:TSUpdate` to update parsers
