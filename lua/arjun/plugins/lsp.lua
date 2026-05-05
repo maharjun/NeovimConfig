@@ -4,15 +4,17 @@ return {
         opts = {},
     },
     {
-        "mason-org/mason-lspconfig.nvim",
+        "neovim/nvim-lspconfig",
         dependencies = {
             "mason-org/mason.nvim",
-            "neovim/nvim-lspconfig",
+            "hrsh7th/cmp-nvim-lsp",
         },
-        opts = {
-            -- Add servers to auto-install here
-            ensure_installed = {},
-        },
+        config = function()
+            vim.lsp.config("*", {
+                capabilities = require("cmp_nvim_lsp").default_capabilities(),
+            })
+            vim.lsp.enable({ "basedpyright", "ruff" })
+        end,
     },
     {
         "hrsh7th/nvim-cmp",
