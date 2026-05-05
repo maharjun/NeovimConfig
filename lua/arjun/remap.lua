@@ -38,3 +38,44 @@ vim.keymap.set("n", "<C-l>", "<C-w>l", { desc = "Move to right pane" })
 
 -- Terminal
 vim.keymap.set("t", "<C-\\>", "<C-\\><C-n>", { desc = "Exit terminal mode" })
+
+vim.api.nvim_create_user_command("Bd", function(opts)
+	local target
+	if opts.args ~= "" then
+		target = tonumber(opts.args) or vim.fn.bufnr(opts.args)
+		if not target or target < 1 then
+			vim.notify("No buffer matching " .. opts.args, vim.log.levels.ERROR)
+			return
+		end
+	else
+		target = vim.api.nvim_get_current_buf()
+	end
+	if vim.bo[target].modified and not opts.bang then
+		vim.notify(
+			("E89: No write since last change for buffer %d (add ! to override)"):format(target),
+			vim.log.levels.ERROR
+		)
+		return
+	end
+	local was_listed = vim.bo[target].buflisted
+	for _, win in ipairs(vim.fn.win_findbuf(target)) do
+		vim.api.nvim_win_call(win, function()
+			local alt = vim.fn.bufnr("#")
+			if alt > 0 and alt ~= target and vim.api.nvim_buf_is_valid(alt) and vim.bo[alt].buflisted then
+				vim.api.nvim_win_set_buf(win, alt)
+			else
+				pcall(vim.cmd, "bprevious")
+				if vim.api.nvim_win_get_buf(win) == target then
+					vim.api.nvim_win_set_buf(win, vim.api.nvim_create_buf(true, false))
+				end
+			end
+		end)
+	end
+	if not vim.api.nvim_buf_is_valid(target) then
+		return
+	end
+	local kill = was_listed and "bdelete" or "bwipeout"
+	vim.cmd(("%s%s %d"):format(kill, opts.bang and "!" or "", target))
+end, { bang = true, nargs = "?", complete = "buffer", desc = "Delete buffer keeping window/tab layout" })
+
+vim.cmd([[cnoreabbrev <expr> bd (getcmdtype() == ':' && getcmdline() ==# 'bd') ? 'Bd' : 'bd']])
