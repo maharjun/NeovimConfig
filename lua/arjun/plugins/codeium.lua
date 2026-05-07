@@ -10,6 +10,9 @@ return {
             virtual_text = {
                 enabled = true,
                 idle_delay = 75,
+                filetypes = {
+                    TelescopePrompt = false,
+                },
                 key_bindings = {
                     accept = "<Tab>",
                     accept_word = "<C-j>",

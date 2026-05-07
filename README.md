@@ -505,6 +505,11 @@ Live markdown preview in the browser. Auto-close is disabled so the preview pers
 ### mini.surround
 Add, delete, and replace surrounding characters (brackets, quotes, tags, etc.). Open brackets add no padding, close brackets add padding (flipped from default).
 
+### windsurf.nvim (Codeium)
+AI completion via virtual text (`<Tab>` accept, `<C-j>` word, `<C-l>` line). Plugin source is `Exafunction/windsurf.nvim` — the renamed `codeium.nvim`; the Lua module is still `require("codeium")`.
+
+Virtual text is disabled inside `TelescopePrompt` buffers to work around [windsurf.vim#351](https://github.com/Exafunction/windsurf.vim/issues/351): each Telescope open spawns extra Codeium requests that aren't closed on `<Esc>`, eventually hitting `EMFILE: too many open files`.
+
 ## Commands Reference
 
 | Command | Description |
