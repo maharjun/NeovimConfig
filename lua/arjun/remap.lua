@@ -16,9 +16,8 @@ vim.keymap.set("n", "<leader>cf", vim.lsp.buf.format, { desc = "Format buffer" }
 vim.keymap.set("n", "<leader>cr", vim.lsp.buf.rename, { desc = "Rename symbol" })
 vim.keymap.set("n", "<leader>cR", "<cmd>lsp restart<cr>", { desc = "Restart LSP server(s)" })
 vim.keymap.set("n", "gd", vim.lsp.buf.definition, { desc = "Go to definition" })
-vim.keymap.set("n", "gtd", vim.lsp.buf.type_definition, { desc = "Go to type definition" })
+vim.keymap.set("n", "grr", "<cmd>Telescope lsp_references<cr>", { desc = "Go to references (Telescope)" })
 vim.keymap.set("n", "K", vim.lsp.buf.hover, { desc = "Hover documentation" })
-vim.keymap.set("n", "gr", "<cmd>Telescope lsp_references<cr>", { desc = "Go to references" })
 
 -- Scroller navigation
 vim.keymap.set("n", "<leader>j", function() require("arjun.scroller").next() end, { desc = "Next scroller item" })
